@@ -50,11 +50,11 @@ def distance(origin, destination):
 def GET(url, headers={}):
     headers['User-Agent'] = 'speedtest-cli/1.0'
     urlparts = urlparse(url)
-    if urlparts.scheme == 'https':
-        conn = http.client.HTTPSConnection(urlparts.netloc, urlparts.port)
+    if urlparts[0] == 'https':
+        conn = http.client.HTTPSConnection(urlparts[1])
     else:
-        conn = http.client.HTTPConnection(urlparts.netloc, urlparts.port)
-    conn.request('GET', urlparts.path, headers=headers)
+        conn = http.client.HTTPConnection(urlparts[1])
+    conn.request('GET', urlparts[2], headers=headers)
     response = conn.getresponse()
     return response
 
@@ -62,11 +62,11 @@ def GET(url, headers={}):
 def POST(url, data, headers={}):
     headers['User-Agent'] = 'speedtest-cli/1.0'
     urlparts = urlparse(url)
-    if urlparts.scheme == 'https':
-        conn = http.client.HTTPSConnection(urlparts.netloc, urlparts.port)
+    if urlparts[0] == 'https':
+        conn = http.client.HTTPSConnection(urlparts[1])
     else:
-        conn = http.client.HTTPConnection(urlparts.netloc, urlparts.port)
-    conn.request('POST', urlparts.path, body=data, headers=headers)
+        conn = http.client.HTTPConnection(urlparts[1])
+    conn.request('POST', urlparts[2], body=data, headers=headers)
     response = conn.getresponse()
     return response
 
