@@ -15,7 +15,7 @@
 #    License for the specific language governing permissions and limitations
 #    under the License.
 
-import urllib2
+import httplib
 import math
 import time
 import os
@@ -23,6 +23,7 @@ import sys
 import threading
 from Queue import Queue
 from xml.dom import minidom as DOM
+from urlparse import urlparse
 try:
     from urlparse import parse_qs
 except ImportError:
@@ -55,6 +56,30 @@ def distance(origin, destination):
     return d
 
 
+def GET(url, headers={}):
+    headers['User-Agent'] = 'speedtest-cli/1.0'
+    urlparts = urlparse(url)
+    if urlparts.scheme == 'https':
+        conn = httplib.HTTPSConnection(urlparts.netloc, urlparts.port)
+    else:
+        conn = httplib.HTTPConnection(urlparts.netloc, urlparts.port)
+    conn.request('GET', urlparts.path, headers=headers)
+    response = conn.getresponse()
+    return response
+
+
+def POST(url, data, headers={}):
+    headers['User-Agent'] = 'speedtest-cli/1.0'
+    urlparts = urlparse(url)
+    if urlparts.scheme == 'https':
+        conn = httplib.HTTPSConnection(urlparts.netloc, urlparts.port)
+    else:
+        conn = httplib.HTTPConnection(urlparts.netloc, urlparts.port)
+    conn.request('POST', urlparts.path, body=data, headers=headers)
+    response = conn.getresponse()
+    return response
+
+
 class FileGetter(threading.Thread):
     def __init__(self, url, start):
         self.url = url
@@ -68,7 +93,7 @@ class FileGetter(threading.Thread):
     def run(self):
         try:
             if (time.time() - self.starttime) <= 10:
-                f = urllib2.urlopen(self.url)
+                f = GET(self.url)
                 self.result = 0
                 while 1:
                     contents = f.read(10240)
@@ -131,7 +156,7 @@ class FilePutter(threading.Thread):
     def run(self):
         try:
             if (time.time() - self.starttime) <= 10:
-                f = urllib2.urlopen(self.url, self.data)
+                f = POST(self.url, self.data)
                 contents = f.read()
                 f.close()
                 self.result = len(self.data)
@@ -183,11 +208,11 @@ def getConfig():
     we are interested in
     """
 
-    uh = urllib2.urlopen('http://www.speedtest.net/speedtest-config.php')
-    configxml = uh.read()
-    if int(uh.code) != 200:
+    f = GET('http://www.speedtest.net/speedtest-config.php')
+    configxml = f.read()
+    if int(f.status) != 200:
         return None
-    uh.close()
+    f.close()
     root = DOM.parseString(configxml)
     config = {
         'client': getAttributesByTagName(root, 'client'),
@@ -204,11 +229,11 @@ def closestServers(client, all=False):
     distance
     """
 
-    uh = urllib2.urlopen('http://speedtest.net/speedtest-servers.php')
-    serversxml = uh.read()
-    if int(uh.code) != 200:
+    f = GET('http://www.speedtest.net/speedtest-servers.php')
+    serversxml = f.read()
+    if int(f.status) != 200:
         return None
-    uh.close()
+    f.close()
     root = DOM.parseString(serversxml)
     servers = {}
     for server in root.getElementsByTagName('server'):
@@ -246,15 +271,15 @@ def getBestServer(servers):
         cum = 0
         url = os.path.dirname(server['url'])
         for i in xrange(0, 3):
-            uh = urllib2.urlopen('%s/latency.txt' % url)
+            f = GET('%s/latency.txt' % url)
             start = time.time()
-            text = uh.read().strip()
+            text = f.read().strip()
             total = time.time() - start
-            if int(uh.code) == 200 and text == 'test=test':
+            if int(f.status) == 200 and text == 'test=test':
                 cum += total
             else:
                 cum += 3600
-            uh.close()
+            f.close()
         avg = round((cum / 3) * 1000000, 3)
         results[avg] = server
 
@@ -384,12 +409,11 @@ def speedtest():
                             (ping, ulspeedk, dlspeedk, '297aae72')
                             ).hexdigest()]
 
-        req = urllib2.Request('http://www.speedtest.net/api/api.php',
-                              data='&'.join(apiData))
-        req.add_header('Referer', 'http://c.speedtest.net/flash/speedtest.swf')
-        f = urllib2.urlopen(req)
+        headers = {'Referer': 'http://c.speedtest.net/flash/speedtest.swf'}
+        f = GET('http://www.speedtest.net/api/api.php',
+                '&'.join(apiData), headers)
         response = f.read()
-        code = f.code
+        code = f.status
         f.close()
 
         if int(code) != 200:
